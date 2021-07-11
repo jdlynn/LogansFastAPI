@@ -1,99 +1,60 @@
-import uuid
-import requests
-from flask import Flask, render_template, session, request, redirect, url_for
-from flask_session import Session  # https://pythonhosted.org/Flask-Session
+from typing import Optional
+
+import httpx
+import uvicorn
 import msal
-import app_config
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi_msal import MSALAuthorization, MSALClientConfig
+from fastapi_msal.models import AuthToken
 
 
-app = Flask(__name__)
-app.config.from_object(app_config)
-Session(app)
-
-# This section is needed for url_for("foo", _external=True) to automatically
-# generate http scheme when this sample is running on localhost,
-# and to generate https scheme when it is deployed behind reversed proxy.
-# See also https://flask.palletsprojects.com/en/1.0.x/deploying/wsgi-standalone/#proxy-setups
-from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-@app.route("/")
-def index():
-    if not session.get("user"):
-        return redirect(url_for("login"))
-    return render_template('index.html', user=session["user"], version=msal.__version__)
-
-@app.route("/login")
-def login():
-    # Technically we could use empty list [] as scopes to do just sign in,
-    # here we choose to also collect end user consent upfront
-    session["flow"] = _build_auth_code_flow(scopes=app_config.SCOPE)
-    return render_template("login.html", auth_url=session["flow"]["auth_uri"], version=msal.__version__)
-
-@app.route(app_config.REDIRECT_PATH)  # Its absolute URL must match your app's redirect_uri set in AAD
-def authorized():
-    try:
-        cache = _load_cache()
-        result = _build_msal_app(cache=cache).acquire_token_by_auth_code_flow(
-            session.get("flow", {}), request.args)
-        if "error" in result:
-            return render_template("auth_error.html", result=result)
-        session["user"] = result.get("id_token_claims")
-        _save_cache(cache)
-    except ValueError:  # Usually caused by CSRF
-        pass  # Simply ignore them
-    return redirect(url_for("index"))
-
-@app.route("/logout")
-def logout():
-    session.clear()  # Wipe out user and its token cache from session
-    return redirect(  # Also logout from your tenant's web session
-        app_config.AUTHORITY + "/oauth2/v2.0/logout" +
-        "?post_logout_redirect_uri=" + url_for("index", _external=True))
-
-@app.route("/graphcall")
-def graphcall():
-    token = _get_token_from_cache(app_config.SCOPE)
-    if not token:
-        return redirect(url_for("login"))
-    graph_data = requests.get(  # Use token to call downstream service
-        app_config.ENDPOINT,
-        headers={'Authorization': 'Bearer ' + token['access_token']},
-        ).json()
-    return render_template('display.html', result=graph_data)
+class AppConfig(MSALClientConfig):
+    # You can find more Microsoft Graph API endpoints from Graph Explorer
+    # https://developer.microsoft.com/en-us/graph/graph-explorer
+    endpoint: str = "https://graph.microsoft.com/v1.0/users"  # This resource requires no admin consent
+    login_path = "/login"  # default is '/_login_route'
+    logout_path = "/logout"  # default is '/_logout_route'
 
 
-def _load_cache():
-    cache = msal.SerializableTokenCache()
-    if session.get("token_cache"):
-        cache.deserialize(session["token_cache"])
-    return cache
+config = AppConfig(_env_file="app_config.env")
 
-def _save_cache(cache):
-    if cache.has_state_changed:
-        session["token_cache"] = cache.serialize()
+app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key=config.client_credential)
+auth = MSALAuthorization(client_config=config)
+app.include_router(auth.router)
 
-def _build_msal_app(cache=None, authority=None):
-    return msal.ConfidentialClientApplication(
-        app_config.CLIENT_ID, authority=authority or app_config.AUTHORITY,
-        client_credential=app_config.CLIENT_SECRET, token_cache=cache)
+templates = Jinja2Templates(directory="templates")
 
-def _build_auth_code_flow(authority=None, scopes=None):
-    return _build_msal_app(authority=authority).initiate_auth_code_flow(
-        scopes or [],
-        redirect_uri=url_for("authorized", _external=True))
 
-def _get_token_from_cache(scope=None):
-    cache = _load_cache()  # This web app maintains one cache per session
-    cca = _build_msal_app(cache=cache)
-    accounts = cca.get_accounts()
-    if accounts:  # So all account(s) belong to the current signed-in user
-        result = cca.acquire_token_silent(scope, account=accounts[0])
-        _save_cache(cache)
-        return result
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    token: Optional[AuthToken] = await auth.get_session_token(request=request)
+    if not token or not token.id_token_claims:
+        return RedirectResponse(url=config.login_path)
+    context = {
+        "request": request,
+        "user": token.id_token_claims,
+        "version": msal.__version__,
+    }
+    return templates.TemplateResponse(name="index.html", context=context)
 
-app.jinja_env.globals.update(_build_auth_code_flow=_build_auth_code_flow)  # Used in template
+
+@app.get("/graphcall")
+async def graphcall(request: Request):
+    token: Optional[AuthToken] = await auth.handler.get_token_from_session(request=request)
+    if not token or not token.access_token:
+        return RedirectResponse(url=config.login_path)
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            config.endpoint, headers={"Authorization": "Bearer " + token.access_token},
+        )
+    graph_data = resp.json()
+    context = {"request": request, "result": graph_data}
+    return templates.TemplateResponse(name="display.html", context=context)
+
 
 if __name__ == "__main__":
-    app.run()
-
+    uvicorn.run("app:app", host="localhost", port=5000, reload=True)
