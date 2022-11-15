@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h1 class="text-bg-danger my-5" style="padding-left: 24px;"> An Error Occurred!</h1>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col col-lg-4">
+                <img class="h-100 w-100" src="{{ url_for('static', path='images/undraw_access_denied_re_awnf.svg' ) }}">
+            </div>
+            <div class="col justify-content-center align-items-center align-content-center col-lg-8" style="padding-left: 41px;">
+                <h3 class="text-danger" style="margin-bottom: 15px;padding-top: 0px;margin-top: 48px;"><strong>Error Details</strong></h3>
+                <h6 style="margin-bottom: 10px;"><strong>Error Code: </strong><em>{{ errorCode }}</em></h6>
+                <h6 style="margin-bottom: 15px;margin-top: -1px;"><strong>JSON: </strong><em>{{ jsonData }}</em></h6>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
+{% endblock %}

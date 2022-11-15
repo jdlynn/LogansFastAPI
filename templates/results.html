@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h1 class="my-5">Audio Bridge successfully Created!</h1>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col col-lg-4">
+                <img class="h-100 w-100" src="{{ url_for('static', path='images/meeting.svg' ) }}">
+            </div>
+            <div class="justify-content-center align-items-center align-content-center col-lg-8" style="padding-left: 41px;">
+                <h3 style="margin-bottom: 15px;padding-top: 0px;margin-top: 48px;"><strong>Meeting Details:</strong></h3>
+                <h6 style="margin-bottom: 10px;"><strong>Host: </strong><em>{{ host }}</em></h6>
+                <h6 style="margin-bottom: 15px;margin-top: -1px;"><strong>Conference ID: </strong><em>{{ confid}}</em></h6>
+                <h6 style="margin-bottom: 15px;margin-top: -1px;"><strong>Toll Number: </strong><em>{{ tollno }}</em></h6>
+                <h6 style="margin-bottom: 15px;margin-top: -1px;"><strong>Dialin URL: </strong><em>{{ dialurl }}</em></h6>
+            </div>
+        </div>
+    </div>
+{% endblock %}

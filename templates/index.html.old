@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>Microsoft Identity Python Web App</h1>
+    <h2>Welcome {{ user_name }}!</h2>
+
+    <li><a href='/graphcall'>Call Microsoft Graph API</a></li>
+
+    <li><a href="/logout">Logout</a></li>
+    <hr>
+</body>
+</html>
+
