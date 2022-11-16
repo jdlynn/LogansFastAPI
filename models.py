@@ -28,13 +28,5 @@ class MeetingBase(SQLModel):
     hostRole: str
 
 
-class MeetingCreate(MeetingBase):
-    pass
-
-
-class MeetingRead(MeetingBase):
-    id: int
-
-
 class Meeting(MeetingBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

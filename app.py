@@ -40,7 +40,7 @@ templates = Jinja2Templates(directory="templates")
 user_name = 'Jim Lynn'
 
 
-def DBAdd(graph_data: dict) -> tuple:
+async def DBAdd(graph_data: dict) -> tuple:
     callid: str = graph_data['id']
     confcreatetime: str = graph_data['creationDateTime']
     confstarttime: str = graph_data['startDateTime']
@@ -151,7 +151,7 @@ async def handleForm(request: Request):
         context = {"request": request, "errorCode": errorcode, "jsonData": jsondata}
         return templates.TemplateResponse(name="errorFound.html", context=context)
 
-    (confid, tollno, dialurl, host) = DBAdd(graph_data)
+    (confid, tollno, dialurl, host) = await DBAdd(graph_data)
 
     context = {"request": request, "host": host, "confid": confid, "tollno": tollno, "dialurl": dialurl}
     return templates.TemplateResponse(name="results.html", context=context)
